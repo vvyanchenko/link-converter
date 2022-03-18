@@ -1,0 +1,45 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:13.3
+    container_name: postgres
+    environment:
+      POSTGRES_DB: "link_converter_database"
+      POSTGRES_USER: "user"
+      POSTGRES_PASSWORD: "password"
+    ports:
+      - "5432:5432"
+    networks:
+      - web-app
+  redis:
+    image: 'bitnami/redis:6.2-debian-10'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - '6379:6379'
+    networks:
+      - web-app
+  converter:
+    build: .
+    container_name: link_converter
+    environment:
+      ACTIVE_PROFILE: "aws"
+      REDIS_NODE: "http://localhost:6379"
+      DATASOURCE_URL: "jdbc:postgresql://postgres:5432/link_converter_database"
+      DATASOURCE_USERNAME: "user"
+      DATASOURCE_PASSWORD: "password"
+      TRENDYOL_URLPROTOCOL: "https"
+      TRENDYOL_URL_HOSTNAME: "www.trendyol.com"
+      TRENDYOL_URL_HOMEPAGE: "https://www.trendyol.com"
+      TRENDYOL_DEEPLINK_SCHEME: "ty"
+      TRENDYOL_DEEPLINK_HOMEPAGE: "ty://?Page=Home"
+    ports:
+      - "8080:8080"
+    networks:
+      - web-app
+    depends_on:
+      - postgres
+
+networks:
+  web-app:
+    driver: bridge

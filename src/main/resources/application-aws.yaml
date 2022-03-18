@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${DATASOURCE_URL}
+    username: ${DATASOURCE_USERNAME}
+    password: ${DATASOURCE_PASSWORD}
+
+redis:
+  node: ${REDIS_NODE}
+
+trendyol:
+  deeplink:
+    scheme: ${TRENDYOL_DEEPLINK_SCHEME}
+    homepage: ${TRENDYOL_DEEPLINK_HOMEPAGE}
+  url:
+    protocol: ${TRENDYOL_URL_PROTOCOL}
+    hostname: ${TRENDYOL_URL_HOSTNAME}
+    homepage: ${TRENDYOL_URL_HOMEPAGE}

@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: "jdbc:postgresql://localhost:5432/link_converter_database"
+    username: "user"
+    password: "password"
+  redis:
+    host: localhost
+    port: 6379
+
+trendyol:
+  deeplink:
+    scheme: "ty"
+    homepage: "ty://?Page=Home"
+  url:
+    protocol: "https"
+    hostname: "www.trendyol.com"
+    homepage: "https://www.trendyol.com"
