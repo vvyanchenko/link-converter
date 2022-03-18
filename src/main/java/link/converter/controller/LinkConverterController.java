@@ -1,7 +1,10 @@
 package link.converter.controller;
 
+import link.converter.controller.dto.DeeplinkRequestDto;
 import link.converter.controller.dto.DeeplinkResponseDto;
 import link.converter.controller.dto.UrlRequestDto;
+import link.converter.controller.dto.UrlResponseDto;
+import link.converter.service.link.DeeplinkService;
 import link.converter.service.link.UrlService;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -24,6 +27,7 @@ import javax.validation.constraints.NotNull;
 public class LinkConverterController {
 
     private final UrlService urlService;
+    private final DeeplinkService deeplinkService;
 
     /**
      *  Converts URL to Deeplink
@@ -34,6 +38,17 @@ public class LinkConverterController {
     @PostMapping(value = "/url/to/deeplink", produces = {MediaType.APPLICATION_JSON_VALUE})
     public DeeplinkResponseDto convertUrlToDeeplink(@RequestBody @Valid @NotNull UrlRequestDto url) {
         return urlService.convertToDeeplink(url);
+    }
+
+    /**
+     *  Converts Deeplink to URL
+     *
+     * @param deeplink - Deeplink to be converted
+     * @return - resulting URL
+     */
+    @PostMapping(value = "/deeplink/to/url", produces = {MediaType.APPLICATION_JSON_VALUE})
+    public UrlResponseDto convertDeeplinkToUrl(@RequestBody @Valid @NotNull DeeplinkRequestDto deeplink) {
+        return deeplinkService.convertToUrl(deeplink);
     }
 
 }

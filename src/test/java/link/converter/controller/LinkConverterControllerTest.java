@@ -1,12 +1,11 @@
 package link.converter.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import link.converter.controller.dto.DeeplinkResponseDto;
-import link.converter.controller.dto.ErrorResponseDto;
-import link.converter.controller.dto.UrlRequestDto;
+import link.converter.controller.dto.*;
 import link.converter.exception.LinkValidationException;
 import link.converter.exception.MalformedLinkException;
 import link.converter.exception.MappingException;
+import link.converter.service.link.DeeplinkService;
 import link.converter.service.link.UrlService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
 import java.net.URL;
 import java.util.stream.Stream;
 
@@ -36,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LinkConverterControllerTest {
 
     private static final String BASE_PATH = "/link/converter";
+    private static final String DEEPLINK_TO_URL_PATH = BASE_PATH + "/deeplink/to/url";
     private static final String URL_TO_DEEPLINK_PATH = BASE_PATH + "/url/to/deeplink";
     private static final String BAD_REQUEST_ERROR_CODE = "server_error";
     private static final String BAD_REQUEST_ERROR_MESSAGE = "Can't parse provided link";
@@ -50,6 +51,9 @@ class LinkConverterControllerTest {
     @MockBean
     private UrlService urlService;
 
+    @MockBean
+    private DeeplinkService deeplinkService;
+
     @ParameterizedTest
     @MethodSource("getUrls")
     void convertUrlToDeeplink_WhenRequestedWithUrl_ThenDeeplinkReturned(String url) throws Exception {
@@ -60,6 +64,24 @@ class LinkConverterControllerTest {
         String responseBody = mapper.writeValueAsString(deeplinkResponse);
 
         mockMvc.perform(post(URL_TO_DEEPLINK_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json(responseBody));
+    }
+
+    @ParameterizedTest
+    @MethodSource("getDeeplinks")
+    void convertDeeplinkToUrl_WhenRequestedWithDeeplink_ThenUrlReturned(String deeplink) throws Exception {
+        String requestBody = getDeeplinkRequestBody(deeplink);
+        UrlResponseDto urlResponse = new UrlResponseDto("url");
+        when(deeplinkService.convertToUrl(
+                argThat(deeplinkDto -> deeplink.equals(deeplinkDto.getDeeplink().toString())))).thenReturn(urlResponse);
+        String responseBody = mapper.writeValueAsString(urlResponse);
+
+        mockMvc.perform(post(DEEPLINK_TO_URL_PATH)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
                         .content(requestBody))
@@ -86,6 +108,24 @@ class LinkConverterControllerTest {
                 .andExpect(content().json(errorResponseString));
     }
 
+    @ParameterizedTest
+    @MethodSource("getExceptions")
+    void convertDeeplinkToUrl_WhenExceptionThrown_ThenResponseStatusBadRequestReturned(RuntimeException ex) throws Exception {
+        String requestBody = getDeeplinkRequestBody("sc://deeplink");
+        String errorCode = "unacceptable_link_format";
+        when(deeplinkService.convertToUrl(any())).thenThrow(ex);
+        ErrorResponseDto errorResponse = new ErrorResponseDto(errorCode, BAD_REQUEST_ERROR_MESSAGE, HttpStatus.BAD_REQUEST);
+        String errorResponseString = mapper.writeValueAsString(errorResponse);
+
+        mockMvc.perform(post(DEEPLINK_TO_URL_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json(errorResponseString));
+    }
+
     @Test
     void convertUrlToDeeplink_WhenMappingExceptionThrown_ThenResponseStatusInternalServerErrorReturned() throws Exception {
         String requestBody = getUrlRequestBody("https://host:8888/path");
@@ -102,6 +142,23 @@ class LinkConverterControllerTest {
                 .andExpect(content().json(errorResponseString));
     }
 
+    @Test
+    void convertDeeplinkToUrl_WhenMappingExceptionThrown_ThenResponseStatusInternalServerErrorReturned() throws Exception {
+        String requestBody = getDeeplinkRequestBody("sc://deeplink");
+        when(deeplinkService.convertToUrl(any())).thenThrow(new MappingException(INTERNAL_SERVER_ERROR_ERROR_MESSAGE));
+        ErrorResponseDto errorResponse = new ErrorResponseDto(BAD_REQUEST_ERROR_CODE, INTERNAL_SERVER_ERROR_ERROR_MESSAGE, HttpStatus.INTERNAL_SERVER_ERROR);
+        String errorResponseString = mapper.writeValueAsString(errorResponse);
+
+        mockMvc.perform(post(DEEPLINK_TO_URL_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json(errorResponseString));
+    }
+
+
     private static Stream<Arguments> getUrls() {
         return Stream.of(
                 Arguments.of("https://www.trendyol.com/casio/saat-p-1925865?boutiqueId=439892&merchantId=105064"),
@@ -112,6 +169,19 @@ class LinkConverterControllerTest {
                 Arguments.of("https://www.trendyol.com/sr?q=%C3%BCt%C3%BC"),
                 Arguments.of("https://www.trendyol.com/Hesabim/Favoriler"),
                 Arguments.of("https://www.trendyol.com/Hesabim#/Siparisleri")
+        );
+    }
+
+    private static Stream<Arguments> getDeeplinks() {
+        return Stream.of(
+                Arguments.of("ty://?Page=Product&ContentId=1925865&CampaignId=439892&MerchantId=105064"),
+                Arguments.of("ty://?Page=Product&ContentId=1925865"),
+                Arguments.of("ty://?Page=Product&ContentId=1925865&CampaignId=439892"),
+                Arguments.of("ty://?Page=Product&ContentId=1925865&MerchantId=105064"),
+                Arguments.of("ty://?Page=Search&Query=elbise"),
+                Arguments.of("ty://?Page=Search&Query=%C3%Bct%C3%BC"),
+                Arguments.of("ty://?Page=Favorites"),
+                Arguments.of("ty://?Page=Orders")
         );
     }
 
@@ -126,6 +196,12 @@ class LinkConverterControllerTest {
     private String getUrlRequestBody(String url) throws Exception {
         URL requestUrl = new URL(url);
         UrlRequestDto request = new UrlRequestDto(requestUrl);
+        return mapper.writeValueAsString(request);
+    }
+
+    private String getDeeplinkRequestBody(String deeplink) throws Exception {
+        URI requestDeeplink = new URI(deeplink);
+        DeeplinkRequestDto request = new DeeplinkRequestDto(requestDeeplink);
         return mapper.writeValueAsString(request);
     }
 
